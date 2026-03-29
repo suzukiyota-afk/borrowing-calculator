@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>借入額算出ツール | 事業理解から最適な資金調達を</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary-color: #20b2aa;
+            --primary-dark: #1a9b94;
+            --primary-light: #48d1cc;
+            --accent-color: #ff1493;
+            --text-dark: #2c3e50;
+            --text-gray: #666;
+            --bg-light: #f0f4f8;
+            --bg-white: #ffffff;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --success: #27ae60;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            line-height: 1.8;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+        /* ===== Header ===== */
+        header {
+            background: var(--primary-color);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        header h1 { font-size: 2em; margin-bottom: 6px; font-weight: 600; }
+        header .subtitle { font-size: 0.95em; opacity: 0.95; }
+
+        /* ===== Step Indicator ===== */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .step-dot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background: white;
+            border-radius: 30px;
+            font-size: 0.85em;
+            color: var(--text-gray);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .step-dot.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: 0 2px 8px rgba(32,178,170,0.4);
+        }
+        .step-dot.done { background: var(--success); color: white; }
+        .step-num {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 0.85em;
+        }
+        .step-dot.active .step-num,
+        .step-dot.done .step-num { background: rgba(255,255,255,0.3); color: white; }
+
+        /* ===== Card ===== */
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-light);
+        }
+
+        /* ===== Form ===== */
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--text-dark);
+            font-size: 0.95em;
+        }
+        .form-group .hint { font-size: 0.8em; color: var(--text-gray); margin-bottom: 5px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } }
+
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%;
+            padding: 11px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s;
+            background: #fafafa;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            background: white;
+        }
+        textarea { min-height: 80px; resize: vertical; }
+
+        .option-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+        .option-card {
+            padding: 13px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-size: 0.9em;
+        }
+        .option-card:hover { border-color: var(--primary-light); background: #f0fffe; }
+        .option-card.selected {
+            border-color: var(--primary-color);
+            background: #e6faf9;
+            color: var(--primary-dark);
+            font-weight: 600;
+        }
+        .option-card input { display: none; }
+
+        /* ===== Buttons ===== */
+        .btn-row { display: flex; justify-content: space-between; margin-top: 25px; gap: 12px; }
+        .btn {
+            padding: 13px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .btn-primary { background: var(--primary-color); color: white; box-shadow: 0 2px 6px rgba(32,178,170,0.3); }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-secondary { background: white; color: var(--text-dark); border: 2px solid #ddd; }
+        .btn-secondary:hover { border-color: var(--primary-color); color: var(--primary-color); }
+        .btn-accent { background: var(--accent-color); color: white; box-shadow: 0 2px 6px rgba(255,20,147,0.3); }
+        .btn-accent:hover { background: #e0117f; }
+        .btn-outline { background: transparent; color: var(--primary-color); border: 2px solid var(--primary-color); }
+        .btn-outline:hover { background: var(--primary-color); color: white; }
+
+        /* ===== Upload ===== */
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafbfc;
+        }
+        .upload-area:hover, .upload-area.dragover { border-color: var(--primary-color); background: #e6faf9; }
+        .upload-area.has-file { border-color: var(--success); background: #e8f5e9; }
+        .upload-area p { color: var(--text-gray); }
+        .upload-area .filename { color: var(--success); font-weight: 600; font-size: 1.05em; }
+        .upload-area input[type="file"] { display: none; }
+
+        /* ===== Result ===== */
+        .result-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        .result-header h2 { font-size: 1.6em; margin-bottom: 12px; }
+
+        /* Mode Toggle */
+        .mode-toggle {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.3);
+            margin: 15px 0;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 14px 20px;
+            background: transparent;
+            color: rgba(255,255,255,0.7);
+            border: none;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            font-family: inherit;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .mode-btn.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .mode-btn:hover { background: rgba(255,255,255,0.1); }
+
+        .result-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+        .result-actions .btn { padding: 10px 20px; font-size: 0.9em; }
+
+        /* KPI */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .kpi-box {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .kpi-label { font-size: 0.85em; color: var(--text-gray); margin-bottom: 6px; }
+        .kpi-value { font-size: 2em; font-weight: bold; color: var(--text-dark); }
+        .kpi-sub { font-size: 0.8em; color: var(--text-gray); margin-top: 4px; }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.85em;
+            color: white;
+        }
+        .risk-low { background: var(--success); }
+        .risk-mid { background: var(--warning); }
+        .risk-high { background: var(--danger); }
+
+        /* Bar chart */
+        .bar-chart { display: flex; align-items: flex-end; gap: 12px; height: 200px; padding: 10px 0; }
+        .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+        .bar-fill {
+            width: 100%; max-width: 60px;
+            background: linear-gradient(to top, var(--primary-color), var(--primary-light));
+            border-radius: 4px 4px 0 0;
+            transition: height 0.5s;
+        }
+        .bar-fill.accent { background: linear-gradient(to top, var(--accent-color), #ff69b4); }
+        .bar-fill.green { background: linear-gradient(to top, var(--success), #66bb6a); }
+        .bar-label-bottom { font-size: 0.75em; color: var(--text-gray); margin-top: 6px; text-align: center; }
+        .bar-label-top { font-size: 0.8em; font-weight: bold; color: var(--text-dark); margin-bottom: 4px; }
+
+        /* Gauge */
+        .gauge-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+        .gauge-box { background: #f8f9fa; padding: 18px; border-radius: 8px; text-align: center; border: 1px solid #e0e0e0; }
+        .gauge-title { font-size: 0.85em; color: var(--text-gray); margin-bottom: 6px; }
+        .gauge-value { font-size: 1.6em; font-weight: bold; }
+        .progress-bar-wrapper { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; margin: 6px 0; }
+        .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+
+        /* Tables */
+        .breakdown-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+        .breakdown-table th, .breakdown-table td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        .breakdown-table th { background: #f8f9fa; font-weight: 600; color: var(--text-dark); }
+        .breakdown-table tr:hover { background: #f8f9fa; }
+        .breakdown-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        /* Strategy */
+        .strategy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+        .strategy-card { padding: 20px; border-radius: 8px; border-left: 4px solid var(--primary-color); background: #f8f9fa; }
+        .strategy-card h4 { color: var(--primary-dark); margin-bottom: 8px; font-size: 1em; }
+        .strategy-card p { font-size: 0.9em; color: var(--text-gray); line-height: 1.6; }
+        .strategy-card .amount { font-size: 1.3em; font-weight: bold; color: var(--text-dark); margin: 6px 0; }
+
+        .tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75em; font-weight: 600; margin: 2px; }
+        .tag-blue { background: #dbeafe; color: #1e40af; }
+        .tag-green { background: #dcfce7; color: #166534; }
+        .tag-orange { background: #fed7aa; color: #9a3412; }
+
+        /* Two col */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 35px;
+            max-width: 900px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .modal h2 { font-size: 1.4em; margin-bottom: 18px; color: var(--text-dark); }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: var(--text-gray);
+            padding: 5px 10px;
+        }
+        .modal-close:hover { color: var(--danger); }
+
+        .formula-box {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .formula { font-size: 0.95em; color: var(--text-dark); margin: 5px 0; }
+
+        .logic-section { margin-bottom: 18px; }
+        .logic-section h3 {
+            font-size: 1.05em;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .logic-section p { font-size: 0.9em; line-height: 1.8; color: var(--text-gray); margin-bottom: 6px; }
+        .logic-section ul { padding-left: 20px; margin: 6px 0; }
+        .logic-section li { font-size: 0.9em; color: var(--text-gray); margin-bottom: 3px; }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid var(--warning);
+            padding: 14px;
+            border-radius: 4px;
+            margin: 12px 0;
+            font-size: 0.9em;
+            line-height: 1.7;
+        }
+
+        /* Story */
+        .story-box {
+            background: #fafbfc;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 28px;
+            line-height: 2;
+            font-size: 0.95em;
+            color: var(--text-dark);
+        }
+        .story-box h3 {
+            font-size: 1.1em;
+            color: var(--primary-dark);
+            margin: 18px 0 8px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px dashed #ccc;
+        }
+        .story-box h3:first-child { margin-top: 0; }
+        .story-box p { margin-bottom: 10px; }
+        .story-box .highlight {
+            background: #e6faf9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .story-box .warn-text {
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        /* FS Preview */
+        .fs-preview { margin: 12px 0; }
+        .fs-preview table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .fs-preview th { background: var(--primary-color); color: white; padding: 8px 12px; text-align: left; }
+        .fs-preview td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .fs-preview tr:nth-child(even) { background: #f8f9fa; }
+        .fs-preview .num { text-align: right; }
+
+        .step-content { display: none; }
+        .step-content.active { display: block; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <header>
+        <h1>借入額算出ツール</h1>
+        <div class="subtitle">あなたの会社にとって「ちょうどいい借入額」を、事業の中身から算出します</div>
+    </header>
+
+    <!-- Step Indicator -->
+    <div class="step-indicator" id="stepIndicator">
+        <div class="step-dot active" onclick="goToStep(1)"><span class="step-num">1</span> 会社のこと</div>
+        <div class="step-dot" onclick="goToStep(2)"><span class="step-num">2</span> 売り方と構造</div>
+        <div class="step-dot" onclick="goToStep(3)"><span class="step-num">3</span> お金の数字</div>
+        <div class="step-dot" onclick="goToStep(4)"><span class="step-num">4</span> 何に使う？</div>
+        <div class="step-dot" onclick="goToStep(5)"><span class="step-num">5</span> 結果を見る</div>
+    </div>
+
+    <!-- ==================== STEP 1 ==================== -->
+    <div class="step-content active" id="step1">
+        <div class="card">
+            <div class="card-title">まずは会社のことを教えてください</div>
+            <p style="color:var(--text-gray); margin-bottom:18px;">ここで入力した情報をもとに、業種や規模に合った「借りるべき金額」を計算します。</p>
+
+            <div class="form-group">
+                <label>会社名（入れなくてもOK）</label>
+                <input type="text" id="companyName" placeholder="例: 株式会社サンプル">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>どんな業種ですか？</label>
+                    <select id="industry">
+                        <option value="">選んでください</option>
+                        <option value="製造業">製造業（工場でモノを作る）</option>
+                        <option value="小売業">小売業（お店で売る）</option>
+                        <option value="飲食業">飲食業（レストラン・カフェ等）</option>
+                        <option value="IT・ソフトウェア">IT・ソフトウェア</option>
+                        <option value="建設業">建設業（建築・土木）</option>
+                        <option value="不動産業">不動産業</option>
+                        <option value="サービス業">サービス業（美容・教育等）</option>
+                        <option value="卸売業">卸売業（企業間で商品を売買）</option>
+                        <option value="運輸・物流">運輸・物流</option>
+                        <option value="医療・福祉">医療・福祉</option>
+                        <option value="農林水産業">農林水産業</option>
+                        <option value="教育・学習支援">教育・学習支援</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>会社を作ってからどのくらい？</label>
+                    <select id="companyAge">
+                        <option value="">選んでください</option>
+                        <option value="pre">これから作る（創業前）</option>
+                        <option value="0">1年未満</option>
+                        <option value="1">1〜3年</option>
+                        <option value="3">3〜5年</option>
+                        <option value="5">5〜10年</option>
+                        <option value="10">10年以上</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>何人くらいで働いていますか？</label>
+                    <select id="employees">
+                        <option value="">選んでください</option>
+                        <option value="1">自分1人</option>
+                        <option value="5">2〜5人</option>
+                        <option value="10">6〜10人</option>
+                        <option value="30">11〜30人</option>
+                        <option value="50">31〜50人</option>
+                        <option value="100">51〜100人</option>
+                        <option value="300">101〜300人</option>
+                        <option value="500">300人以上</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>1年間の売上はどのくらい？（万円）</label>
+                    <input type="number" id="annualRevenue" placeholder="例: 10000（= 1億円）">
+                    <div class="hint">まだ創業前なら「初年度の見込み」を入れてください</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>どんな商売をしていますか？（かんたんに）</label>
+                <textarea id="bizDescription" placeholder="例: 中小企業向けにクラウド型の勤怠管理システムを月額課金で提供している"></textarea>
+            </div>
+
+            <div class="btn-row">
+                <div></div>
+                <button class="btn btn-primary" onclick="nextStep(2)">次へ進む</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== STEP 2 ==================== -->
+    <div class="step-content" id="step2">
+        <div class="card">
+            <div class="card-title">売り方とお金の流れを教えてください</div>
+            <p style="color:var(--text-gray); margin-bottom:18px;">ビジネスの構造によって「必要なお金の量」は大きく変わります。</p>
+
+            <div class="form-group">
+                <label>どうやってお金をもらっていますか？</label>
+                <div class="option-group" id="revenueModel">
+                    <div class="option-card" onclick="selectOption(this, 'revenueModel')">
+                        <input type="radio" name="revenueModel" value="subscription">毎月の定額課金
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'revenueModel')">
+                        <input type="radio" name="revenueModel" value="oneshot">1回ごとの売り切り
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'revenueModel')">
+                        <input type="radio" name="revenueModel" value="project">案件ごとの受注
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'revenueModel')">
+                        <input type="radio" name="revenueModel" value="commission">仲介手数料
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'revenueModel')">
+                        <input type="radio" name="revenueModel" value="store">お店で直接販売
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'revenueModel')">
+                        <input type="radio" name="revenueModel" value="mixed">いろいろ混ざっている
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>売上は季節で変わりますか？</label>
+                <div class="option-group" id="seasonality">
+                    <div class="option-card" onclick="selectOption(this, 'seasonality')">
+                        <input type="radio" name="seasonality" value="stable">あまり変わらない
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'seasonality')">
+                        <input type="radio" name="seasonality" value="moderate">少し波がある
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'seasonality')">
+                        <input type="radio" name="seasonality" value="high">かなり波がある
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>売った後、お金が入るまで何日くらい？</label>
+                    <div class="hint">「売掛金の回収サイト」のことです</div>
+                    <select id="receivableDays">
+                        <option value="">選んでください</option>
+                        <option value="0">すぐもらえる（現金商売）</option>
+                        <option value="30">だいたい1ヶ月後</option>
+                        <option value="60">だいたい2ヶ月後</option>
+                        <option value="90">3ヶ月以上</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>仕入れたお金を払うのは何日後？</label>
+                    <div class="hint">「買掛金の支払サイト」のことです</div>
+                    <select id="payableDays">
+                        <option value="">選んでください</option>
+                        <option value="0">すぐ払う</option>
+                        <option value="30">だいたい1ヶ月後</option>
+                        <option value="60">だいたい2ヶ月後</option>
+                        <option value="90">3ヶ月以上</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>毎月かかる固定の出費（万円）</label>
+                <div class="hint">わからなければ空欄でかまいません</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal; font-size:0.9em;">人件費（月額）</label>
+                        <input type="number" id="fixedPersonnel" placeholder="例: 300">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal; font-size:0.9em;">家賃やリース料（月額）</label>
+                        <input type="number" id="fixedRent" placeholder="例: 50">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>売上のうち、どのくらいが「粗利（もうけ）」？</label>
+                <div class="hint">「売上 − 仕入れ原価」の割合です。ざっくりでOK</div>
+                <select id="grossMargin">
+                    <option value="">選んでください</option>
+                    <option value="10">10%以下（卸売や商社などうすい利益）</option>
+                    <option value="20">10〜20%（小売・一部の製造業）</option>
+                    <option value="30">20〜30%（飲食・製造業）</option>
+                    <option value="40">30〜40%（サービス業）</option>
+                    <option value="50">40〜50%（ITやコンサル）</option>
+                    <option value="70">50%以上（SaaSやプラットフォーム）</option>
+                </select>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="nextStep(1)">戻る</button>
+                <button class="btn btn-primary" onclick="nextStep(3)">次へ進む</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== STEP 3 ==================== -->
+    <div class="step-content" id="step3">
+        <div class="card">
+            <div class="card-title">お金まわりの数字を入力</div>
+            <p style="color:var(--text-gray); margin-bottom:18px;">
+                決算書（Excel / CSV）をアップロードすると自動で読み取ります。<br>
+                決算書がなければ、下の「手で入力する」から数字を入れてもOKです。
+            </p>
+
+            <div style="display:flex; gap:10px; margin-bottom:18px;">
+                <button class="btn btn-primary" id="tabUpload" onclick="switchFinTab('upload')" style="padding:10px 18px;">決算書をアップロード</button>
+                <button class="btn btn-secondary" id="tabManual" onclick="switchFinTab('manual')" style="padding:10px 18px;">手で入力する</button>
+            </div>
+
+            <!-- Upload -->
+            <div id="finUpload">
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <p style="font-size:1.1em; font-weight:600; margin-bottom:8px;">ここにファイルを置く、またはクリック</p>
+                    <p>対応ファイル: Excel (.xlsx, .xls), CSV (.csv)</p>
+                    <p style="font-size:0.8em; margin-top:8px;">決算書・試算表・勘定科目の残高一覧など</p>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileUpload(event)">
+                </div>
+                <div id="parsedPreview" class="hidden" style="margin-top:18px;">
+                    <div class="card-title" style="font-size:1.05em;">読み取り結果</div>
+                    <div id="parsedContent"></div>
+                </div>
+            </div>
+
+            <!-- Manual -->
+            <div id="finManual" class="hidden">
+                <div class="card-title" style="font-size:1.05em;">損益計算書（P/L）の数字（万円）</div>
+                <p style="color:var(--text-gray); font-size:0.85em; margin-bottom:12px;">1年分の数字を入れてください。わからない項目は空欄でOK。</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">売上高</label>
+                        <input type="number" id="mRevenue" placeholder="年間の売上">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">売上原価（仕入れにかかったお金）</label>
+                        <input type="number" id="mCOGS" placeholder="年間の仕入れ等">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">販管費（人件費や家賃など経費全体）</label>
+                        <input type="number" id="mSGA" placeholder="年間の経費">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">営業利益（本業のもうけ）</label>
+                        <input type="number" id="mOperatingIncome" placeholder="売上−原価−経費">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">減価償却費</label>
+                        <input type="number" id="mDepreciation" placeholder="設備の減りぶん">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">支払利息（借入の利息）</label>
+                        <input type="number" id="mInterest" placeholder="年間の利息">
+                    </div>
+                </div>
+
+                <div class="card-title" style="font-size:1.05em; margin-top:18px;">貸借対照表（B/S）の数字（万円）</div>
+                <p style="color:var(--text-gray); font-size:0.85em; margin-bottom:12px;">今の残高です。</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">現金・預金</label>
+                        <input type="number" id="mCash" placeholder="通帳の残高合計">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">売掛金（まだもらっていないお金）</label>
+                        <input type="number" id="mReceivables" placeholder="請求済み・未入金">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">在庫（まだ売れていない商品）</label>
+                        <input type="number" id="mInventory" placeholder="倉庫の在庫額">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">固定資産（土地・建物・機械など）</label>
+                        <input type="number" id="mFixedAssets" placeholder="設備等の簿価">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">買掛金（まだ払っていないお金）</label>
+                        <input type="number" id="mPayables" placeholder="仕入先への未払い">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">今ある借入金の残り</label>
+                        <input type="number" id="mDebt" placeholder="銀行等からの借入残高">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="font-weight:normal;">純資産（会社の自分のお金）</label>
+                        <input type="number" id="mEquity" placeholder="資本金＋これまでの利益">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight:normal;">資産の合計</label>
+                        <input type="number" id="mTotalAssets" placeholder="B/Sの左側合計">
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="nextStep(2)">戻る</button>
+                <button class="btn btn-primary" onclick="nextStep(4)">次へ進む</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== STEP 4 ==================== -->
+    <div class="step-content" id="step4">
+        <div class="card">
+            <div class="card-title">借りたお金を何に使いますか？</div>
+
+            <div class="form-group">
+                <label>お金の使い道（いくつでも選べます）</label>
+                <div class="option-group" id="fundPurpose">
+                    <div class="option-card" onclick="toggleOption(this)">
+                        <input type="checkbox" value="運転資金"> 日々のやりくり（運転資金）
+                    </div>
+                    <div class="option-card" onclick="toggleOption(this)">
+                        <input type="checkbox" value="設備投資"> 機械やシステムの導入
+                    </div>
+                    <div class="option-card" onclick="toggleOption(this)">
+                        <input type="checkbox" value="人材採用"> 人を雇う・育てる
+                    </div>
+                    <div class="option-card" onclick="toggleOption(this)">
+                        <input type="checkbox" value="新規事業"> 新しい事業やサービス
+                    </div>
+                    <div class="option-card" onclick="toggleOption(this)">
+                        <input type="checkbox" value="店舗出店"> お店を出す・移す
+                    </div>
+                    <div class="option-card" onclick="toggleOption(this)">
+                        <input type="checkbox" value="借り換え"> 今の借入を借り換え
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>設備投資の予定額（万円）</label>
+                    <input type="number" id="capexAmount" placeholder="例: 2000">
+                    <div class="hint">設備投資しないなら空欄でOK</div>
+                </div>
+                <div class="form-group">
+                    <label>何年で返したいですか？</label>
+                    <select id="desiredTerm">
+                        <option value="">おまかせ（自動で決める）</option>
+                        <option value="1">1年くらい</option>
+                        <option value="3">3年くらい</option>
+                        <option value="5">5年くらい</option>
+                        <option value="7">7年くらい</option>
+                        <option value="10">10年くらい</option>
+                        <option value="15">15年以上</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>これからの売上はどうなりそう？</label>
+                <div class="option-group" id="growthOutlook">
+                    <div class="option-card" onclick="selectOption(this, 'growthOutlook')">
+                        <input type="radio" name="growthOutlook" value="decline">減りそう
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'growthOutlook')">
+                        <input type="radio" name="growthOutlook" value="flat">横ばい
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'growthOutlook')">
+                        <input type="radio" name="growthOutlook" value="moderate">少し伸びそう
+                    </div>
+                    <div class="option-card" onclick="selectOption(this, 'growthOutlook')">
+                        <input type="radio" name="growthOutlook" value="high">大きく伸びそう
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>ほかに伝えておきたいこと（あれば）</label>
+                <textarea id="additionalNotes" placeholder="例: 来月に大きな注文が決まりそう、設備が古くなっている等"></textarea>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="nextStep(3)">戻る</button>
+                <button class="btn btn-accent" onclick="calculate()">借入額を算出する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== STEP 5: RESULT ==================== -->
+    <div class="step-content" id="step5">
+
+        <div class="result-header">
+            <h2>算出結果レポート</h2>
+            <div id="resultCompanyLabel" style="opacity:0.9;"></div>
+
+            <!-- 攻め vs 守り Toggle -->
+            <div class="mode-toggle">
+                <button class="mode-btn active" id="modeDefense" onclick="switchMode('defense')">守り ── 安定して回すための額</button>
+                <button class="mode-btn" id="modeOffense" onclick="switchMode('offense')">攻め ── 成長に踏み出すための額</button>
+            </div>
+
+            <div class="result-actions">
+                <button class="btn btn-outline" style="color:white; border-color:rgba(255,255,255,0.5);" onclick="showStoryModal()">この結果をわかりやすく読む</button>
+                <button class="btn btn-outline" style="color:white; border-color:rgba(255,255,255,0.5);" onclick="showLogicModal()">算出ロジックを確認</button>
+                <button class="btn btn-outline" style="color:white; border-color:rgba(255,255,255,0.5);" onclick="nextStep(1)">最初からやり直す</button>
+            </div>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="two-col">
+            <div class="card">
+                <div class="card-title">借入額の内訳</div>
+                <div id="borrowingBreakdown"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">返せるかどうかのチェック</div>
+                <div id="repaymentMetrics"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">月ごとのお金の流れ</div>
+            <div id="resultChart"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">おすすめの借り方</div>
+            <div id="strategyCards"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">気をつけること</div>
+            <div id="riskSection"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== Story Modal ==================== -->
+<div class="modal-overlay" id="storyModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeStoryModal()">&#x2715;</button>
+        <h2>あなたの会社の資金調達ストーリー</h2>
+        <div id="storyContent" class="story-box"></div>
+        <div style="text-align:center; margin-top:18px;">
+            <button class="btn btn-primary" onclick="closeStoryModal()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== Logic Modal ==================== -->
+<div class="modal-overlay" id="logicModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeLogicModal()">&#x2715;</button>
+        <h2>算出ロジックの詳細</h2>
+
+        <div class="logic-section">
+            <h3>1. 運転資金ってなに？</h3>
+            <p>商売をしていると、「売ったけどまだお金をもらっていない」「仕入れたけどまだ売れていない在庫がある」という状態が起きます。その間、手元のお金が足りなくなります。これが「運転資金」です。</p>
+            <div class="formula-box">
+                <div class="formula">運転資金 ＝ もらっていないお金（売掛金） ＋ まだ売れていない在庫 − まだ払っていないお金（買掛金）</div>
+            </div>
+            <p>このツールでは、入力された情報から上の金額を計算し、さらに売上の波（季節変動）を考慮して余裕分を上乗せしています。</p>
+        </div>
+
+        <div class="logic-section">
+            <h3>2. 設備資金ってなに？</h3>
+            <p>機械を買う、システムを入れる、店舗を改装するなど「大きな買い物」のための資金です。全額を借入で賄うのではなく、手元のお金から一部出すのが一般的です。</p>
+            <div class="formula-box">
+                <div class="formula">設備のために借りる額 ＝ 設備投資の金額 × （1 − 自分のお金で出す割合）</div>
+            </div>
+            <p>一般的には設備投資の20〜30%は自分のお金で出すことが銀行から求められます。</p>
+        </div>
+
+        <div class="logic-section">
+            <h3>3. 返せる金額には上限がある</h3>
+            <p>いくら借りたくても、返す力がなければ借りられません。返す力は「毎年いくらお金が残るか」で決まります。</p>
+            <div class="formula-box">
+                <div class="formula">毎年の返済力 ＝ 本業のもうけ（営業利益） ＋ 減価償却費 − 税金</div>
+            </div>
+            <div class="formula-box">
+                <div class="formula">返済力の上限 ＝ 毎年の返済力 × 返済年数 × 70%</div>
+            </div>
+            <p>70%にするのは「ぎりぎりまで返済に回すと、急にお金が必要になった時に困る」からです。3割は余裕として残しておきます。</p>
+        </div>
+
+        <div class="logic-section">
+            <h3>4. 安全かどうかの目安</h3>
+            <table class="breakdown-table">
+                <tr><th>チェック項目</th><th>何を見ている？</th><th>目安</th></tr>
+                <tr><td>借入が月商の何ヶ月分か</td><td>借入合計 ÷ 1ヶ月の売上</td><td>3〜6ヶ月が安全</td></tr>
+                <tr><td>自分のお金の比率</td><td>純資産 ÷ 全部の資産</td><td>20%以上がよい</td></tr>
+                <tr><td>返済カバー率</td><td>手元に残るお金 ÷ 年間の返済額</td><td>1.2倍以上なら安心</td></tr>
+                <tr><td>借入がもうけの何年分か</td><td>借入合計 ÷ 年間のもうけ</td><td>5年以内が目安</td></tr>
+            </table>
+        </div>
+
+        <div class="logic-section">
+            <h3>5. 業種ごとの調整</h3>
+            <p>業種によって「どのくらい借入が普通か」は違います。たとえば製造業は高い機械が必要なので多めに借りますし、IT企業は設備が少ないので少なめです。このツールでは業種ごとの目安を使って調整しています。</p>
+        </div>
+
+        <div class="logic-section">
+            <h3>6. 「守り」と「攻め」の考え方</h3>
+            <p><strong>守り（安定運営）</strong>は「今の事業をきちんと回すために最低限必要な額」です。急な出費や売上の波に対応できるだけの余裕を持ちます。</p>
+            <p><strong>攻め（成長投資）</strong>は「守りの額に加えて、事業を伸ばすための投資資金」です。人を雇う、新しい機械を入れる、お店を出すなど、成長のための先行投資を含みます。当然リスクも高くなります。</p>
+        </div>
+
+        <div class="warning-box">
+            この算出結果はあくまで目安です。実際にいくら借りられるかは銀行の審査で決まります。税理士や中小企業診断士に相談することをおすすめします。
+        </div>
+
+        <div style="text-align:center; margin-top:18px;">
+            <button class="btn btn-primary" onclick="closeLogicModal()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== State ====================
+let currentStep = 1;
+let uploadedFS = null;
+let calculationResult = null;
+let currentMode = 'defense'; // 'defense' or 'offense'
+
+// ==================== Nav ====================
+function goToStep(n) {
+    if (n === 5 && !calculationResult) return;
+    nextStep(n);
+}
+function nextStep(n) {
+    document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+    document.getElementById('step' + n).classList.add('active');
+    document.querySelectorAll('.step-dot').forEach((dot, i) => {
+        dot.classList.remove('active', 'done');
+        if (i + 1 < n) dot.classList.add('done');
+        if (i + 1 === n) dot.classList.add('active');
+    });
+    currentStep = n;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ==================== Options ====================
+function selectOption(el, groupId) {
+    el.closest('.option-group').querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    el.querySelector('input').checked = true;
+}
+function toggleOption(el) {
+    el.classList.toggle('selected');
+    const cb = el.querySelector('input');
+    cb.checked = !cb.checked;
+}
+
+// ==================== Finance Tab ====================
+function switchFinTab(tab) {
+    document.getElementById('finUpload').classList.toggle('hidden', tab !== 'upload');
+    document.getElementById('finManual').classList.toggle('hidden', tab !== 'manual');
+    document.getElementById('tabUpload').className = tab === 'upload' ? 'btn btn-primary' : 'btn btn-secondary';
+    document.getElementById('tabManual').className = tab === 'manual' ? 'btn btn-primary' : 'btn btn-secondary';
+}
+
+// ==================== File Upload ====================
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        document.getElementById('fileInput').files = e.dataTransfer.files;
+        handleFileUpload({ target: { files: e.dataTransfer.files } });
+    }
+});
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    uploadArea.classList.add('has-file');
+    uploadArea.innerHTML = `<p class="filename">${file.name}</p><p>読み込み中...</p>`;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            parseFinancialStatements(workbook, file.name);
+            uploadArea.innerHTML = `<p class="filename">${file.name}</p><p style="color:var(--success);">読み取り完了 ── 下のプレビューを確認してください</p><p style="font-size:0.8em; margin-top:8px; cursor:pointer; color:var(--primary-color);" onclick="event.stopPropagation(); document.getElementById('fileInput').click();">別のファイルに変更する</p>`;
+        } catch (err) {
+            uploadArea.innerHTML = `<p style="color:var(--danger);">読み取りエラー: ${err.message}</p><p style="font-size:0.85em; margin-top:8px;">「手で入力する」タブに切り替えるか、別のファイルをお試しください</p>`;
+            uploadArea.classList.remove('has-file');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function parseFinancialStatements(workbook) {
+    const keywords = {
+        revenue: ['売上高', '売上', '営業収益', '収入合計'],
+        cogs: ['売上原価', '原価'],
+        sga: ['販売費及び一般管理費', '販管費', '販売費'],
+        operatingIncome: ['営業利益', '営業損失'],
+        depreciation: ['減価償却費', '減価償却'],
+        interest: ['支払利息', '利息'],
+        cash: ['現金及び預金', '現預金', '現金'],
+        receivables: ['売掛金', '受取手形', '売掛金及び受取手形', '受取手形及び売掛金'],
+        inventory: ['棚卸資産', '商品', '製品', '仕掛品'],
+        fixedAssets: ['固定資産合計', '固定資産'],
+        payables: ['買掛金', '支払手形'],
+        debt: ['借入金', '長期借入', '短期借入', '有利子負債', '社債'],
+        equity: ['純資産合計', '純資産', '自己資本'],
+        totalAssets: ['資産合計', '総資産']
+    };
+    const found = {};
+    let allRows = [];
+    workbook.SheetNames.forEach(name => {
+        const json = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
+        json.forEach(row => { if (row && row.length > 0) allRows.push(row); });
+    });
+    for (const [key, kws] of Object.entries(keywords)) {
+        for (const row of allRows) {
+            if (found[key]) break;
+            const rowStr = row.map(c => String(c)).join('|');
+            for (const kw of kws) {
+                if (rowStr.includes(kw)) {
+                    for (let i = row.length - 1; i >= 0; i--) {
+                        const val = parseFloat(String(row[i]).replace(/,/g, ''));
+                        if (!isNaN(val) && val !== 0) { found[key] = val; break; }
+                    }
+                    if (found[key]) break;
+                }
+            }
+        }
+    }
+    // Unit conversion
+    const maxVal = Math.max(...Object.values(found).map(v => Math.abs(v || 0)));
+    let unitLabel = '万円';
+    if (maxVal > 100000000) { for (const k of Object.keys(found)) found[k] = Math.round(found[k] / 10000); unitLabel = '円 → 万円に変換'; }
+    else if (maxVal > 1000000) { for (const k of Object.keys(found)) found[k] = Math.round(found[k] / 10); unitLabel = '千円 → 万円に変換'; }
+
+    uploadedFS = found;
+    // Fill manual fields
+    const map = { revenue:'mRevenue', cogs:'mCOGS', sga:'mSGA', operatingIncome:'mOperatingIncome', depreciation:'mDepreciation', interest:'mInterest', cash:'mCash', receivables:'mReceivables', inventory:'mInventory', fixedAssets:'mFixedAssets', payables:'mPayables', debt:'mDebt', equity:'mEquity', totalAssets:'mTotalAssets' };
+    for (const [k, id] of Object.entries(map)) { if (found[k]) document.getElementById(id).value = found[k]; }
+    if (found.revenue && !document.getElementById('annualRevenue').value) document.getElementById('annualRevenue').value = found.revenue;
+
+    // Preview
+    const preview = document.getElementById('parsedPreview');
+    preview.classList.remove('hidden');
+    const labels = { revenue:'売上高', cogs:'売上原価', sga:'販管費', operatingIncome:'営業利益', depreciation:'減価償却費', interest:'支払利息', cash:'現預金', receivables:'売掛金', inventory:'在庫', fixedAssets:'固定資産', payables:'買掛金', debt:'借入金', equity:'純資産', totalAssets:'総資産' };
+    const detectedCount = Object.keys(found).length;
+    let html = `<p style="margin-bottom:10px;">読み取れた項目: <strong>${detectedCount} / ${Object.keys(labels).length}</strong>（単位: ${unitLabel}）</p>`;
+    html += '<div class="fs-preview"><table><tr><th>科目</th><th style="text-align:right;">金額（万円）</th><th>検出</th></tr>';
+    for (const [key, label] of Object.entries(labels)) {
+        const val = found[key];
+        html += `<tr><td>${label}</td><td class="num">${val !== undefined ? val.toLocaleString() : '−'}</td><td style="text-align:center;">${val !== undefined ? '○' : '−'}</td></tr>`;
+    }
+    html += '</table></div>';
+    if (detectedCount < Object.keys(labels).length) {
+        html += '<div class="warning-box">一部の科目が自動で見つかりませんでした。「手で入力する」タブで足りない部分を補うと、より正確な結果が出ます。</div>';
+    }
+    document.getElementById('parsedContent').innerHTML = html;
+}
+
+// ==================== Calculation ====================
+function getVal(id) { return parseFloat(document.getElementById(id).value) || 0; }
+function getSelected(name) { const el = document.querySelector(`input[name="${name}"]:checked`); return el ? el.value : ''; }
+function getCheckedValues(containerId) { return Array.from(document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`)).map(c => c.value); }
+
+const industryConfig = {
+    '製造業':        { inventoryMonths: 2.0, borrowingRatio: [4, 8], capexHeavy: true },
+    '小売業':        { inventoryMonths: 1.5, borrowingRatio: [2, 5], capexHeavy: false },
+    '飲食業':        { inventoryMonths: 0.3, borrowingRatio: [3, 6], capexHeavy: true },
+    'IT・ソフトウェア': { inventoryMonths: 0, borrowingRatio: [2, 4], capexHeavy: false },
+    '建設業':        { inventoryMonths: 0.8, borrowingRatio: [4, 8], capexHeavy: true },
+    '不動産業':      { inventoryMonths: 0.5, borrowingRatio: [5, 10], capexHeavy: true },
+    'サービス業':    { inventoryMonths: 0.1, borrowingRatio: [2, 5], capexHeavy: false },
+    '卸売業':        { inventoryMonths: 1.2, borrowingRatio: [2, 4], capexHeavy: false },
+    '運輸・物流':    { inventoryMonths: 0.3, borrowingRatio: [4, 7], capexHeavy: true },
+    '医療・福祉':    { inventoryMonths: 0.5, borrowingRatio: [3, 6], capexHeavy: true },
+    '農林水産業':    { inventoryMonths: 2.0, borrowingRatio: [3, 7], capexHeavy: true },
+    '教育・学習支援': { inventoryMonths: 0.1, borrowingRatio: [2, 5], capexHeavy: false },
+    'その他':        { inventoryMonths: 0.5, borrowingRatio: [3, 6], capexHeavy: false },
+};
+
+function calculate() {
+    const industry = document.getElementById('industry').value;
+    const annualRevenue = getVal('annualRevenue');
+    if (!industry || !annualRevenue) { alert('業種と年商を入力してください（ステップ1）。'); return; }
+    const revenueModelCheck = getSelected('revenueModel');
+    const grossMarginCheck = document.getElementById('grossMargin').value;
+    if (!revenueModelCheck || !grossMarginCheck) { alert('売り方と粗利率を選んでください（ステップ2）。'); return; }
+
+    const config = industryConfig[industry] || industryConfig['その他'];
+    const monthlyRevenue = annualRevenue / 12;
+
+    const revenue = getVal('mRevenue') || annualRevenue;
+    const cogs = getVal('mCOGS') || revenue * (1 - (parseInt(document.getElementById('grossMargin').value) || 30) / 100);
+    const sga = getVal('mSGA') || 0;
+    const operatingIncome = getVal('mOperatingIncome') || (revenue - cogs - sga);
+    const depreciation = getVal('mDepreciation') || 0;
+    const interestExpense = getVal('mInterest') || 0;
+    const cash = getVal('mCash') || monthlyRevenue * 1.5;
+    const receivables = getVal('mReceivables') || monthlyRevenue * (parseInt(document.getElementById('receivableDays').value) || 30) / 30;
+    const inventory = getVal('mInventory') || (cogs / 12) * config.inventoryMonths;
+    const fixedAssets = getVal('mFixedAssets') || 0;
+    const payables = getVal('mPayables') || (cogs / 12) * (parseInt(document.getElementById('payableDays').value) || 30) / 30;
+    const existingDebt = getVal('mDebt') || 0;
+    const equity = getVal('mEquity') || revenue * 0.1;
+    const totalAssets = getVal('mTotalAssets') || (cash + receivables + inventory + fixedAssets);
+    const grossMarginPct = ((revenue - cogs) / revenue * 100) || 30;
+    const seasonality = getSelected('seasonality');
+    const growthOutlook = getSelected('growthOutlook');
+    const capex = getVal('capexAmount');
+    const purposes = getCheckedValues('fundPurpose');
+    const desiredTerm = parseInt(document.getElementById('desiredTerm').value) || 0;
+
+    // 1. Working Capital
+    const workingCapitalNeed = receivables + inventory - payables;
+    const seasonalBuffer = seasonality === 'high' ? 0.3 : seasonality === 'moderate' ? 0.2 : 0.15;
+    const workingCapitalWithBuffer = Math.max(0, workingCapitalNeed * (1 + seasonalBuffer));
+    const workingCapitalGap = Math.max(0, workingCapitalWithBuffer - cash * 0.5);
+
+    // 2. Capex
+    const selfFundRatio = Math.min(0.3, cash * 0.3 / (capex || 1));
+    const capexBorrowing = capex > 0 ? capex * (1 - selfFundRatio) : 0;
+
+    // 3. Growth
+    let growthMultiplier = 0;
+    if (growthOutlook === 'high') growthMultiplier = 0.15;
+    else if (growthOutlook === 'moderate') growthMultiplier = 0.08;
+    const growthFunding = monthlyRevenue * growthMultiplier * 6;
+
+    // 4. Repayment capacity
+    const ebitda = operatingIncome + depreciation;
+    const taxRate = 0.33;
+    const annualCF = ebitda * (1 - taxRate) + depreciation * taxRate;
+    const annualCFAdj = Math.max(0, annualCF);
+
+    let repaymentYears = desiredTerm;
+    if (!repaymentYears) { repaymentYears = (capex > 0 && config.capexHeavy) ? 7 : 5; }
+    const existingAnnualRepayment = existingDebt / Math.max(repaymentYears, 3);
+    const availableForNewRepayment = annualCFAdj * 0.7 - existingAnnualRepayment;
+    const capacityBased = Math.max(0, availableForNewRepayment * repaymentYears);
+    const safetyBorrowingMax = monthlyRevenue * config.borrowingRatio[1];
+
+    // === DEFENSE (守り) ===
+    const defenseRaw = workingCapitalGap + (capexBorrowing * 0.6);
+    const defenseCoeff = growthOutlook === 'decline' ? 0.7 : 0.85;
+    const defenseBorrowing = Math.max(0, Math.round(Math.min(defenseRaw, capacityBased * 0.8, safetyBorrowingMax * 0.7) * defenseCoeff));
+
+    // === OFFENSE (攻め) ===
+    const offenseRaw = workingCapitalGap + capexBorrowing + growthFunding;
+    const offenseCoeff = growthOutlook === 'decline' ? 0.7 : growthOutlook === 'flat' ? 0.8 : 0.9;
+    const offenseBorrowing = Math.max(0, Math.round(Math.min(offenseRaw, capacityBased, safetyBorrowingMax) * offenseCoeff));
+
+    // Metrics helper
+    function calcMetrics(borrowAmt) {
+        const totalDebtAfter = existingDebt + borrowAmt;
+        const annualRepayment = borrowAmt / repaymentYears;
+        return {
+            borrowAmt,
+            totalDebtAfter,
+            annualRepayment,
+            monthlyRepayment: annualRepayment / 12,
+            borrowingMonths: monthlyRevenue > 0 ? totalDebtAfter / monthlyRevenue : 0,
+            equityRatio: totalAssets > 0 ? equity / (totalAssets + borrowAmt) * 100 : 0,
+            dscr: annualRepayment > 0 ? annualCFAdj / (annualRepayment + existingAnnualRepayment) : 99,
+            debtToEbitda: ebitda > 0 ? totalDebtAfter / ebitda : 99,
+            interestCoverage: interestExpense > 0 ? operatingIncome / interestExpense : 99,
+        };
+    }
+
+    const defenseMetrics = calcMetrics(defenseBorrowing);
+    const offenseMetrics = calcMetrics(offenseBorrowing);
+
+    // Risk
+    function calcRisk(m) {
+        if (m.dscr < 1.0 || m.debtToEbitda > 8 || m.equityRatio < 10) return { level: 'high', label: '高め' };
+        if (m.dscr < 1.5 || m.debtToEbitda > 5 || m.equityRatio < 20) return { level: 'mid', label: 'ふつう' };
+        return { level: 'low', label: '低い' };
+    }
+
+    calculationResult = {
+        defense: { ...defenseMetrics, risk: calcRisk(defenseMetrics) },
+        offense: { ...offenseMetrics, risk: calcRisk(offenseMetrics) },
+        workingCapitalGap, capexBorrowing, growthFunding,
+        capacityBased, safetyBorrowingMax,
+        monthlyRevenue, annualCFAdj, repaymentYears,
+        existingDebt, existingAnnualRepayment,
+        ebitda, operatingIncome, revenue, grossMarginPct,
+        industry, config, purposes, capex, seasonality, growthOutlook,
+        cash, receivables, inventory, payables, equity, totalAssets
+    };
+
+    currentMode = 'defense';
+    renderResults();
+    nextStep(5);
+}
+
+// ==================== Mode Switch ====================
+function switchMode(mode) {
+    currentMode = mode;
+    document.getElementById('modeDefense').classList.toggle('active', mode === 'defense');
+    document.getElementById('modeOffense').classList.toggle('active', mode === 'offense');
+    renderResults();
+}
+
+// ==================== Render ====================
+function renderResults() {
+    const r = calculationResult;
+    const m = currentMode === 'defense' ? r.defense : r.offense;
+    const modeLabel = currentMode === 'defense' ? '守り（安定運営）' : '攻め（成長投資）';
+    const fmt = n => Math.round(n).toLocaleString();
+
+    const name = document.getElementById('companyName').value || '対象企業';
+    document.getElementById('resultCompanyLabel').innerHTML = `${name}（${r.industry}） ── 年商 ${fmt(r.revenue)}万円 ── 粗利率 ${r.grossMarginPct.toFixed(0)}%`;
+
+    // KPI
+    document.getElementById('kpiGrid').innerHTML = `
+        <div class="kpi-box">
+            <div class="kpi-label">${modeLabel}の借入額</div>
+            <div class="kpi-value" style="color:var(--primary-color);">${fmt(m.borrowAmt)}<span style="font-size:0.4em;"> 万円</span></div>
+        </div>
+        <div class="kpi-box">
+            <div class="kpi-label">毎月の返済（目安）</div>
+            <div class="kpi-value">${fmt(m.monthlyRepayment)}<span style="font-size:0.4em;"> 万円/月</span></div>
+            <div class="kpi-sub">${r.repaymentYears}年で返す場合</div>
+        </div>
+        <div class="kpi-box">
+            <div class="kpi-label">返済の余裕度</div>
+            <div class="kpi-value">${m.dscr.toFixed(2)}<span style="font-size:0.4em;"> 倍</span></div>
+            <div class="kpi-sub">${m.dscr >= 1.5 ? '余裕あり' : m.dscr >= 1.2 ? 'まあまあ' : '余裕が少ない'}</div>
+        </div>
+        <div class="kpi-box">
+            <div class="kpi-label">リスクの度合い</div>
+            <div class="kpi-value"><span class="risk-badge risk-${m.risk.level}">${m.risk.label}</span></div>
+            <div class="kpi-sub">月商の ${m.borrowingMonths.toFixed(1)} ヶ月分</div>
+        </div>
+    `;
+
+    // Breakdown
+    const isOffense = currentMode === 'offense';
+    document.getElementById('borrowingBreakdown').innerHTML = `
+        <table class="breakdown-table">
+            <tr><th>何のためのお金？</th><th class="num">金額（万円）</th></tr>
+            <tr><td>日々のやりくり（運転資金の不足分）</td><td class="num">${fmt(r.workingCapitalGap)}</td></tr>
+            <tr><td>設備投資（自分のお金で出す分を引いた後）</td><td class="num">${fmt(isOffense ? r.capexBorrowing : r.capexBorrowing * 0.6)}</td></tr>
+            ${isOffense ? `<tr><td>成長のための先行投資</td><td class="num">${fmt(r.growthFunding)}</td></tr>` : ''}
+            <tr style="font-weight:bold; border-top:2px solid var(--text-dark);"><td>合計（安全係数で調整後）</td><td class="num">${fmt(m.borrowAmt)}</td></tr>
+        </table>
+        <p style="font-size:0.8em; color:var(--text-gray); margin-top:8px;">
+            ※ 返せる力の上限: ${fmt(r.capacityBased)}万円 ／ 業種の目安上限: ${fmt(r.safetyBorrowingMax)}万円
+        </p>
+    `;
+
+    // Gauges
+    document.getElementById('repaymentMetrics').innerHTML = `
+        <div class="gauge-row">
+            <div class="gauge-box">
+                <div class="gauge-title">自分のお金の比率</div>
+                <div class="gauge-value" style="color:${m.equityRatio >= 20 ? 'var(--success)' : m.equityRatio >= 10 ? 'var(--warning)' : 'var(--danger)'};">${m.equityRatio.toFixed(1)}%</div>
+                <div class="progress-bar-wrapper"><div class="progress-bar-fill" style="width:${Math.min(m.equityRatio, 100)}%; background:${m.equityRatio >= 20 ? 'var(--success)' : 'var(--warning)'};"></div></div>
+                <div style="font-size:0.75em; color:var(--text-gray);">20%以上だと安心</div>
+            </div>
+            <div class="gauge-box">
+                <div class="gauge-title">借入 ÷ もうけ</div>
+                <div class="gauge-value" style="color:${m.debtToEbitda <= 5 ? 'var(--success)' : m.debtToEbitda <= 8 ? 'var(--warning)' : 'var(--danger)'};">${m.debtToEbitda.toFixed(1)}年分</div>
+                <div class="progress-bar-wrapper"><div class="progress-bar-fill" style="width:${Math.min(m.debtToEbitda / 10 * 100, 100)}%; background:${m.debtToEbitda <= 5 ? 'var(--success)' : 'var(--warning)'};"></div></div>
+                <div style="font-size:0.75em; color:var(--text-gray);">5年以内が目安</div>
+            </div>
+            <div class="gauge-box">
+                <div class="gauge-title">返済カバー率</div>
+                <div class="gauge-value" style="color:${m.dscr >= 1.5 ? 'var(--success)' : m.dscr >= 1.2 ? 'var(--warning)' : 'var(--danger)'};">${m.dscr.toFixed(2)}倍</div>
+                <div class="progress-bar-wrapper"><div class="progress-bar-fill" style="width:${Math.min(m.dscr / 3 * 100, 100)}%; background:${m.dscr >= 1.5 ? 'var(--success)' : 'var(--warning)'};"></div></div>
+                <div style="font-size:0.75em; color:var(--text-gray);">1.2倍以上なら安心</div>
+            </div>
+            <div class="gauge-box">
+                <div class="gauge-title">月商の何ヶ月分？</div>
+                <div class="gauge-value" style="color:${m.borrowingMonths <= r.config.borrowingRatio[1] ? 'var(--success)' : 'var(--danger)'};">${m.borrowingMonths.toFixed(1)}ヶ月</div>
+                <div class="progress-bar-wrapper"><div class="progress-bar-fill" style="width:${Math.min(m.borrowingMonths / 12 * 100, 100)}%; background:${m.borrowingMonths <= r.config.borrowingRatio[1] ? 'var(--success)' : 'var(--warning)'};"></div></div>
+                <div style="font-size:0.75em; color:var(--text-gray);">${r.config.borrowingRatio[0]}〜${r.config.borrowingRatio[1]}ヶ月が目安</div>
+            </div>
+        </div>
+    `;
+
+    // Chart
+    const monthlyCF = r.annualCFAdj / 12;
+    const monthlyRepayOld = r.existingAnnualRepayment / 12;
+    const surplus = monthlyCF - m.monthlyRepayment - monthlyRepayOld;
+    const maxBar = Math.max(r.monthlyRevenue, monthlyCF, m.monthlyRepayment + monthlyRepayOld, 1);
+    document.getElementById('resultChart').innerHTML = `
+        <div class="bar-chart">
+            <div class="bar-col"><div class="bar-label-top">${fmt(r.monthlyRevenue)}</div><div class="bar-fill" style="height:${r.monthlyRevenue / maxBar * 180}px;"></div><div class="bar-label-bottom">月の売上</div></div>
+            <div class="bar-col"><div class="bar-label-top">${fmt(monthlyCF)}</div><div class="bar-fill" style="height:${monthlyCF / maxBar * 180}px;"></div><div class="bar-label-bottom">月に残るお金</div></div>
+            <div class="bar-col"><div class="bar-label-top">${fmt(m.monthlyRepayment)}</div><div class="bar-fill accent" style="height:${Math.max(m.monthlyRepayment / maxBar * 180, 2)}px;"></div><div class="bar-label-bottom">新しい返済/月</div></div>
+            <div class="bar-col"><div class="bar-label-top">${fmt(monthlyRepayOld)}</div><div class="bar-fill accent" style="height:${Math.max(monthlyRepayOld / maxBar * 180, 2)}px;"></div><div class="bar-label-bottom">今の返済/月</div></div>
+            <div class="bar-col"><div class="bar-label-top">${fmt(Math.max(surplus, 0))}</div><div class="bar-fill green" style="height:${Math.max(surplus / maxBar * 180, 2)}px;"></div><div class="bar-label-bottom">返済後の余り</div></div>
+        </div>
+        ${surplus < 0 ? '<div class="warning-box">返済後に手元に残るお金がマイナスになります。借入額を減らすか返済期間を延ばすことを検討してください。</div>' : ''}
+    `;
+
+    // Strategy
+    let strategies = [];
+    if (r.workingCapitalGap > 0) strategies.push({ title: '日々のやりくり資金', amount: `${fmt(r.workingCapitalGap)}万円`, desc: `信用金庫や地方銀行の「短期借入」「当座貸越」が向いています。1年以内の枠を作っておくと、必要なときだけ使えて利息も抑えられます。`, tags: ['短期融資', '当座貸越'] });
+    if ((isOffense ? r.capexBorrowing : r.capexBorrowing * 0.6) > 0) strategies.push({ title: '設備のための資金', amount: `${fmt(isOffense ? r.capexBorrowing : r.capexBorrowing * 0.6)}万円`, desc: `日本政策金融公庫の設備資金融資（担保なしで最大7,200万円）や自治体の制度融資がおすすめ。金利が低く、返済期間も長めに設定できます。`, tags: ['公庫', '制度融資', '長期'] });
+    if (isOffense && r.growthFunding > 0) strategies.push({ title: '成長のための先行投資', amount: `${fmt(r.growthFunding)}万円`, desc: `売上が伸びると運転資金も増えます。メインバンクとの関係を深めて中期の融資枠を確保するか、RBF（売上連動型の資金調達）も選択肢になります。`, tags: ['中期融資', 'RBF'] });
+    if (strategies.length === 0) strategies.push({ title: '今は借りる必要が少ない状況です', amount: '−', desc: '現在のお金の流れで事業は回せています。ただし将来に備えて、銀行との関係づくりや融資枠の確保をしておくと安心です。', tags: ['予備枠'] });
+
+    document.getElementById('strategyCards').innerHTML = '<div class="strategy-grid">' + strategies.map(s => `
+        <div class="strategy-card">
+            <h4>${s.title}</h4>
+            <div class="amount">${s.amount}</div>
+            <p>${s.desc}</p>
+            <div style="margin-top:8px;">${s.tags.map(t => `<span class="tag tag-blue">${t}</span>`).join(' ')}</div>
+        </div>
+    `).join('') + '</div>';
+
+    // Risks
+    let risks = [];
+    if (m.dscr < 1.2) risks.push({ level: 'high', text: `返済の余裕度が${m.dscr.toFixed(2)}倍しかなく、ぎりぎりです。借りる額を減らすか、返済期間を長くすることを考えてください。` });
+    if (m.debtToEbitda > 5) risks.push({ level: 'mid', text: `借入がもうけの${m.debtToEbitda.toFixed(1)}年分あります。これは多めです。まず売上や利益を増やす計画と合わせて検討しましょう。` });
+    if (m.equityRatio < 15) risks.push({ level: 'mid', text: `自分のお金の比率が${m.equityRatio.toFixed(1)}%と低めです。できれば利益を貯めるか、増資で自己資本を増やしましょう。` });
+    if (m.borrowingMonths > r.config.borrowingRatio[1]) risks.push({ level: 'mid', text: `借入が月商の${m.borrowingMonths.toFixed(1)}ヶ月分で、${r.industry}の目安（${r.config.borrowingRatio[0]}〜${r.config.borrowingRatio[1]}ヶ月）を超えています。` });
+    if (risks.length === 0) risks.push({ level: 'low', text: '主なチェック項目はすべて安全な範囲です。この額なら無理のない資金調達ができそうです。' });
+    risks.push({ level: 'info', text: 'この結果はあくまで目安です。実際の融資審査では事業計画の中身や社長の信用情報なども見られます。専門家（税理士・中小企業診断士）に相談することをおすすめします。' });
+
+    document.getElementById('riskSection').innerHTML = risks.map(rsk => `
+        <div class="warning-box" style="border-left-color:${rsk.level === 'high' ? 'var(--danger)' : rsk.level === 'mid' ? 'var(--warning)' : rsk.level === 'low' ? 'var(--success)' : 'var(--primary-color)'}; background:${rsk.level === 'high' ? '#fde8e8' : rsk.level === 'mid' ? '#fff3cd' : rsk.level === 'low' ? '#e8f5e9' : '#e6faf9'};">
+            ${rsk.text}
+        </div>
+    `).join('');
+}
+
+// ==================== Story Modal ====================
+function showStoryModal() {
+    const r = calculationResult;
+    const d = r.defense;
+    const o = r.offense;
+    const fmt = n => Math.round(n).toLocaleString();
+    const name = document.getElementById('companyName').value || 'あなたの会社';
+
+    let story = '';
+
+    // 1. Current Situation
+    story += `<h3>今の状況</h3>`;
+    story += `<p>${name}は<span class="highlight">${r.industry}</span>の会社で、年間の売上は<span class="highlight">${fmt(r.revenue)}万円</span>（月に約${fmt(r.monthlyRevenue)}万円）です。</p>`;
+
+    if (r.existingDebt > 0) {
+        story += `<p>すでに<span class="highlight">${fmt(r.existingDebt)}万円</span>の借入があり、毎月約${fmt(r.existingAnnualRepayment / 12)}万円を返済しています。</p>`;
+    }
+
+    const cashMonths = r.monthlyRevenue > 0 ? (r.cash / r.monthlyRevenue).toFixed(1) : '−';
+    story += `<p>手元の現金は約${fmt(r.cash)}万円で、月商の<span class="highlight">${cashMonths}ヶ月分</span>です。`;
+    if (parseFloat(cashMonths) < 2) story += ` <span class="warn-text">これは少なめです。一般的には2〜3ヶ月分あると安心と言われています。</span>`;
+    story += `</p>`;
+
+    // 2. Why you need money
+    story += `<h3>なぜお金が必要か</h3>`;
+    if (r.workingCapitalGap > 0) {
+        story += `<p>商売をしていると「売ったけどお金がまだ入ってこない」「在庫を持っている」といった立替が発生します。${name}の場合、この立替の不足分が約<span class="highlight">${fmt(r.workingCapitalGap)}万円</span>あります。これを手元のお金だけでは賄いきれないため、借入で補う必要があります。</p>`;
+    }
+    if (r.capex > 0) {
+        story += `<p>また、設備投資として<span class="highlight">${fmt(r.capex)}万円</span>を予定しています。このうち一部は手元のお金から出し、残りを借入で調達します。</p>`;
+    }
+
+    // 3. Defense
+    story += `<h3>守り ── 安定して回すなら</h3>`;
+    story += `<p>今の事業をしっかり回し、急な出費にも対応できるようにするには、<span class="highlight">${fmt(d.borrowAmt)}万円</span>くらいの借入が適切です。</p>`;
+    story += `<p>この場合、毎月の返済は約<span class="highlight">${fmt(d.monthlyRepayment)}万円</span>（${r.repaymentYears}年返済）で、手元に残るお金から十分返していけます（返済カバー率 ${d.dscr.toFixed(2)}倍）。`;
+    if (d.risk.level === 'low') story += ` リスクは低く、無理のない水準です。`;
+    story += `</p>`;
+
+    // Where to borrow (defense)
+    story += `<p>借りる先としては、`;
+    if (r.workingCapitalGap > 0) story += `運転資金は<span class="highlight">信用金庫や地方銀行の短期融資</span>が向いています。`;
+    if (r.capex > 0) story += `設備資金は<span class="highlight">日本政策金融公庫</span>や<span class="highlight">自治体の制度融資</span>が金利が低くておすすめです。`;
+    if (r.workingCapitalGap === 0 && r.capex === 0) story += `<span class="highlight">信用金庫</span>や<span class="highlight">日本政策金融公庫</span>でまずは相談してみるのがよいでしょう。`;
+    story += `</p>`;
+
+    // 4. Offense
+    story += `<h3>攻め ── 成長に踏み出すなら</h3>`;
+    story += `<p>守りに加えて、事業を伸ばすための先行投資も含めると、<span class="highlight">${fmt(o.borrowAmt)}万円</span>くらいの借入になります。</p>`;
+
+    if (r.growthFunding > 0) {
+        story += `<p>売上が伸びると、その分だけ立替のお金（運転資金）も増えます。成長資金として約${fmt(r.growthFunding)}万円を上乗せしています。</p>`;
+    }
+
+    story += `<p>毎月の返済は約<span class="highlight">${fmt(o.monthlyRepayment)}万円</span>に増えます。返済カバー率は${o.dscr.toFixed(2)}倍で、`;
+    if (o.dscr >= 1.5) story += `まだ余裕はありますが、守りに比べるとリスクは上がります。`;
+    else if (o.dscr >= 1.2) story += `なんとか返せる水準ですが、売上が計画を下回ると苦しくなります。`;
+    else story += `<span class="warn-text">余裕が少なく、慎重に判断してください。</span>`;
+    story += `</p>`;
+
+    // 5. Comparison
+    story += `<h3>守りと攻め、どちらがいい？</h3>`;
+    const diff = o.borrowAmt - d.borrowAmt;
+    story += `<p>守りと攻めの差は<span class="highlight">${fmt(diff)}万円</span>です。</p>`;
+
+    if (r.growthOutlook === 'high' || r.growthOutlook === 'moderate') {
+        story += `<p>売上が伸びる見込みがあるなら、攻めの額で借りておくと「お金がなくて成長できない」という状況を避けられます。ただし、思ったほど売上が伸びなかったときのリスクも頭に入れておいてください。</p>`;
+    } else {
+        story += `<p>売上が横ばいか減少の見込みなら、まずは守りの額で借りるのが堅実です。余裕ができてから追加で借りることもできます。</p>`;
+    }
+
+    // 6. Next step
+    story += `<h3>次にやること</h3>`;
+    story += `<p>1. まずは税理士や中小企業診断士に相談し、この算出結果を見せてください。<br>`;
+    story += `2. 日本政策金融公庫や地元の信用金庫に相談の予約を入れてみましょう。<br>`;
+    story += `3. 事業計画書を作っておくと、融資の審査がスムーズに進みます。</p>`;
+
+    story += `<div class="warning-box" style="margin-top:18px;">この文章の数字はすべて目安です。実際にいくら借りられるかは銀行の審査で決まります。</div>`;
+
+    document.getElementById('storyContent').innerHTML = story;
+    document.getElementById('storyModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeStoryModal() { document.getElementById('storyModal').classList.remove('show'); document.body.style.overflow = ''; }
+
+// ==================== Logic Modal ====================
+function showLogicModal() { document.getElementById('logicModal').classList.add('show'); document.body.style.overflow = 'hidden'; }
+function closeLogicModal() { document.getElementById('logicModal').classList.remove('show'); document.body.style.overflow = ''; }
+document.getElementById('logicModal').addEventListener('click', function(e) { if (e.target === this) closeLogicModal(); });
+document.getElementById('storyModal').addEventListener('click', function(e) { if (e.target === this) closeStoryModal(); });
+</script>
+
+</body>
+</html>
